@@ -173,6 +173,31 @@
     return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
+  // Theme: a personal, per-browser preference (not shared with the room),
+  // so it lives in localStorage and applies as soon as the page loads.
+  const THEME_KEY = 'private-chat-theme';
+  const THEME_DEFAULTS = { bubble: '#2b5cff', bg: '#0f1115' };
+
+  function loadTheme() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(THEME_KEY));
+      return { ...THEME_DEFAULTS, ...(saved || {}) };
+    } catch {
+      return { ...THEME_DEFAULTS };
+    }
+  }
+
+  function applyTheme(theme) {
+    document.documentElement.style.setProperty('--bubble-me', theme.bubble);
+    document.documentElement.style.setProperty('--bg', theme.bg);
+  }
+
+  function saveTheme(theme) {
+    try { localStorage.setItem(THEME_KEY, JSON.stringify(theme)); } catch { /* ignore */ }
+  }
+
+  applyTheme(loadTheme());
+
   const roomMatch = window.location.pathname.match(/^\/r\/([A-Za-z0-9_-]{4,64})$/);
 
   if (!roomMatch) {
@@ -305,6 +330,38 @@
       msgs.forEach((m) => addMessageEl(m, m.name === myName ? 'me' : 'other'));
     });
 
+    const roomTitleEl = document.getElementById('roomTitle');
+    const roomTitleInput = document.getElementById('roomTitleInput');
+
+    socket.on('room:name', ({ name }) => {
+      roomTitleEl.textContent = name;
+      document.title = name;
+    });
+
+    function startEditingRoomTitle() {
+      roomTitleInput.value = roomTitleEl.textContent;
+      hide(roomTitleEl);
+      show(roomTitleInput);
+      roomTitleInput.focus();
+      roomTitleInput.select();
+    }
+
+    function commitRoomTitle() {
+      const name = roomTitleInput.value.trim();
+      hide(roomTitleInput);
+      show(roomTitleEl);
+      if (name && name !== roomTitleEl.textContent) {
+        socket.emit('room:rename', name);
+      }
+    }
+
+    roomTitleEl.addEventListener('click', startEditingRoomTitle);
+    roomTitleInput.addEventListener('blur', commitRoomTitle);
+    roomTitleInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') roomTitleInput.blur();
+      if (e.key === 'Escape') { roomTitleInput.value = roomTitleEl.textContent; roomTitleInput.blur(); }
+    });
+
     socket.on('message', (msg) => {
       addMessageEl(msg, msg.name === myName ? 'me' : 'other');
       if (msg.text) {
@@ -402,6 +459,35 @@
     });
     document.getElementById('qrCloseBtn').addEventListener('click', () => hide(qrModal));
     qrModal.addEventListener('click', (e) => { if (e.target === qrModal) hide(qrModal); });
+
+    const themeModal = document.getElementById('themeModal');
+    const bubbleColorInput = document.getElementById('bubbleColorInput');
+    const bgColorInput = document.getElementById('bgColorInput');
+
+    document.getElementById('themeBtn').addEventListener('click', () => {
+      const theme = loadTheme();
+      bubbleColorInput.value = theme.bubble;
+      bgColorInput.value = theme.bg;
+      show(themeModal);
+    });
+
+    function updateThemeFromInputs() {
+      const theme = { bubble: bubbleColorInput.value, bg: bgColorInput.value };
+      applyTheme(theme);
+      saveTheme(theme);
+    }
+    bubbleColorInput.addEventListener('input', updateThemeFromInputs);
+    bgColorInput.addEventListener('input', updateThemeFromInputs);
+
+    document.getElementById('themeResetBtn').addEventListener('click', () => {
+      applyTheme(THEME_DEFAULTS);
+      saveTheme(THEME_DEFAULTS);
+      bubbleColorInput.value = THEME_DEFAULTS.bubble;
+      bgColorInput.value = THEME_DEFAULTS.bg;
+    });
+
+    document.getElementById('themeCloseBtn').addEventListener('click', () => hide(themeModal));
+    themeModal.addEventListener('click', (e) => { if (e.target === themeModal) hide(themeModal); });
 
     initVoiceCall(socket, myName);
   }

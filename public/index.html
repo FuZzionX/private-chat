@@ -27,13 +27,15 @@
 
 <div id="chat" class="screen hidden">
   <header class="chat-header">
-    <div>
-      <div class="room-title">Private room</div>
+    <div class="room-title-wrap">
+      <div id="roomTitle" class="room-title" title="Click to rename this room">Private room</div>
+      <input id="roomTitleInput" class="room-title-input hidden" maxlength="40" autocomplete="off" />
       <div id="presence" class="presence"></div>
     </div>
     <div class="header-actions">
       <button id="callBtn" class="ghost icon-btn" title="Start voice call" aria-label="Start voice call">📞</button>
       <button id="muteBtn" class="ghost icon-btn hidden" title="Mute" aria-label="Mute">🎙️</button>
+      <button id="themeBtn" class="ghost icon-btn" title="Theme" aria-label="Theme">🎨</button>
       <button id="qrBtn" class="ghost">📱 QR code</button>
       <button id="copyLinkBtn" class="ghost">Copy invite link</button>
     </div>
@@ -47,6 +49,25 @@
       <img id="qrImg" alt="QR code for this room's invite link" width="240" height="240" />
       <p id="qrLinkText" class="qr-link"></p>
       <button type="button" id="qrCloseBtn" class="ghost">Close</button>
+    </div>
+  </div>
+
+  <div id="themeModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h2>Theme</h2>
+      <p class="sub">Just for you, on this device.</p>
+      <div class="theme-row">
+        <label for="bubbleColorInput">Message bubble</label>
+        <input type="color" id="bubbleColorInput" />
+      </div>
+      <div class="theme-row">
+        <label for="bgColorInput">Background</label>
+        <input type="color" id="bgColorInput" />
+      </div>
+      <div class="theme-actions">
+        <button type="button" id="themeResetBtn" class="ghost">Reset</button>
+        <button type="button" id="themeCloseBtn" class="ghost">Close</button>
+      </div>
     </div>
   </div>
 

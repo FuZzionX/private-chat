@@ -28,7 +28,7 @@ const MAX_ROOM_HISTORY_BYTES = 40 * 1024 * 1024; // rough cap so an image-heavy 
 function getOrCreateRoom(roomId) {
   let room = rooms.get(roomId);
   if (!room) {
-    room = { messages: [], users: new Map(), callMembers: new Set(), historyBytes: 0 };
+    room = { name: 'Private room', messages: [], users: new Map(), callMembers: new Set(), historyBytes: 0 };
     rooms.set(roomId, room);
   }
   return room;
@@ -73,6 +73,7 @@ app.get('/r/:roomId/qr.png', async (req, res) => {
 });
 
 const MAX_NAME_LEN = 24;
+const MAX_ROOM_NAME_LEN = 40;
 const MAX_MSG_LEN = 2000;
 const MAX_IMAGE_DATA_URL_LEN = 6 * 1024 * 1024; // ~4.5MB raw image, base64-encoded
 const MAX_AUDIO_DATA_URL_LEN = 6 * 1024 * 1024; // generous for a couple minutes of opus
@@ -94,8 +95,23 @@ io.on('connection', (socket) => {
     socket.join(roomId);
 
     socket.emit('history', room.messages);
+    socket.emit('room:name', { name: room.name });
     io.to(roomId).emit('presence', { users: roomUserList(room) });
     socket.to(roomId).emit('system', { text: `${displayName} joined`, ts: Date.now() });
+  });
+
+  socket.on('room:rename', (name) => {
+    if (!joinedRoomId) return;
+    if (typeof name !== 'string') return;
+    const trimmed = name.trim().slice(0, MAX_ROOM_NAME_LEN);
+    if (!trimmed) return;
+
+    const room = rooms.get(joinedRoomId);
+    if (!room) return;
+
+    room.name = trimmed;
+    io.to(joinedRoomId).emit('room:name', { name: trimmed });
+    socket.to(joinedRoomId).emit('system', { text: `${displayName} renamed the room to "${trimmed}"`, ts: Date.now() });
   });
 
   socket.on('message', (payload, ack) => {
