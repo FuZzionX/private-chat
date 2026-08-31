@@ -239,6 +239,16 @@
       }
     });
 
+    const qrModal = document.getElementById('qrModal');
+    const qrImg = document.getElementById('qrImg');
+    document.getElementById('qrBtn').addEventListener('click', () => {
+      qrImg.src = `/r/${roomId}/qr.png?t=${Date.now()}`;
+      document.getElementById('qrLinkText').textContent = window.location.href;
+      show(qrModal);
+    });
+    document.getElementById('qrCloseBtn').addEventListener('click', () => hide(qrModal));
+    qrModal.addEventListener('click', (e) => { if (e.target === qrModal) hide(qrModal); });
+
     initVoiceCall(socket, myName);
   }
 

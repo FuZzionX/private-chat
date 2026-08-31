@@ -1,6 +1,7 @@
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
+const QRCode = require('qrcode');
 const { Server } = require('socket.io');
 
 const app = express();
@@ -12,6 +13,10 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 3000;
+
+// So req.protocol reflects the real scheme (https) behind Render's proxy,
+// not the proxy's own http connection to this process.
+app.set('trust proxy', true);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -54,6 +59,17 @@ app.get('/api/new-room', (req, res) => {
 
 app.get('/r/:roomId', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/r/:roomId/qr.png', async (req, res) => {
+  if (!/^[A-Za-z0-9_-]{4,64}$/.test(req.params.roomId)) return res.status(400).end();
+  const url = `${req.protocol}://${req.get('host')}/r/${req.params.roomId}`;
+  try {
+    const buf = await QRCode.toBuffer(url, { width: 320, margin: 2 });
+    res.set('Cache-Control', 'no-store').type('png').send(buf);
+  } catch {
+    res.status(500).end();
+  }
 });
 
 const MAX_NAME_LEN = 24;

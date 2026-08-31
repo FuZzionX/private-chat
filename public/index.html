@@ -34,11 +34,21 @@
     <div class="header-actions">
       <button id="callBtn" class="ghost">🎙️ Start voice call</button>
       <button id="muteBtn" class="ghost hidden">🎙️ Mute</button>
+      <button id="qrBtn" class="ghost">📱 QR code</button>
       <button id="copyLinkBtn" class="ghost">Copy invite link</button>
     </div>
   </header>
 
   <div id="callBar" class="call-bar hidden"></div>
+
+  <div id="qrModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h2>Scan to join</h2>
+      <img id="qrImg" alt="QR code for this room's invite link" width="240" height="240" />
+      <p id="qrLinkText" class="qr-link"></p>
+      <button type="button" id="qrCloseBtn" class="ghost">Close</button>
+    </div>
+  </div>
 
   <div id="messages" class="messages"></div>
   <div id="typingIndicator" class="typing-indicator"></div>
