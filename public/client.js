@@ -125,10 +125,33 @@
 
   function startChat() {
     socket = io();
+    let everConnected = false;
 
     socket.on('connect', () => {
       socket.emit('join', { roomId, name: myName });
+      if (everConnected) toast('Back online');
+      everConnected = true;
     });
+
+    socket.on('disconnect', () => {
+      toast('Connection lost, reconnecting…');
+    });
+
+    // Render's free tier can take up to ~50s to wake from sleep, so a
+    // send made right after a disconnect may need to wait for reconnection
+    // rather than timing out — this waits for `connect` before emitting.
+    function sendMessage(payload, cb) {
+      const doEmit = () => {
+        socket.timeout(15000).emit('message', payload, (err, response) => {
+          if (cb) cb(!err && response && response.ok, response);
+        });
+      };
+      if (socket.connected) {
+        doEmit();
+      } else {
+        socket.once('connect', doEmit);
+      }
+    }
 
     socket.on('history', (msgs) => {
       messagesEl.innerHTML = '';
@@ -163,8 +186,8 @@
       e.preventDefault();
       const text = input.value;
       if (!text.trim()) return;
-      socket.timeout(8000).emit('message', { text }, (err, response) => {
-        if (err || !response || !response.ok) toast('Message failed to send, try again');
+      sendMessage({ text }, (ok) => {
+        if (!ok) toast('Message failed to send, try again');
       });
       input.value = '';
       socket.emit('typing', false);
@@ -183,8 +206,8 @@
         if (dataUrl.length > 6 * 1024 * 1024) {
           toast('That photo is too large, try a smaller one');
         } else {
-          socket.timeout(8000).emit('message', { image: dataUrl }, (err, response) => {
-            if (err || !response || !response.ok) toast('Photo failed to send, try again');
+          sendMessage({ image: dataUrl }, (ok) => {
+            if (!ok) toast('Photo failed to send, try again');
           });
         }
       } catch {
@@ -194,7 +217,7 @@
       }
     });
 
-    initVoiceNotes(socket, attachBtn, input);
+    initVoiceNotes(sendMessage, attachBtn, input);
 
     let lastTypingEmit = 0;
     input.addEventListener('input', () => {
@@ -220,7 +243,7 @@
   }
 
   // --- Voice notes: record, preview, then explicitly send. ---
-  function initVoiceNotes(socket, attachBtn, textInput) {
+  function initVoiceNotes(sendMessage, attachBtn, textInput) {
     const recordBtn = document.getElementById('recordBtn');
     const composerForm = document.getElementById('composerForm');
     const previewBar = document.getElementById('voicePreview');
@@ -280,8 +303,8 @@
       sendBtn.addEventListener('click', () => {
         sendBtn.disabled = true;
         sendBtn.textContent = 'Sending…';
-        socket.timeout(8000).emit('message', { audio: dataUrl }, (err, response) => {
-          if (err || !response || !response.ok) {
+        sendMessage({ audio: dataUrl }, (ok) => {
+          if (!ok) {
             sendBtn.disabled = false;
             sendBtn.textContent = 'Send';
             toast('Voice note failed to send, try again');
