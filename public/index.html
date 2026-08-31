@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Private Chat</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+<div id="landing" class="screen hidden">
+  <div class="card">
+    <h1>Private Chat</h1>
+    <p class="sub">Create a room, share the link, talk. Nothing is saved — when everyone leaves, the conversation is gone.</p>
+    <button id="createRoomBtn" class="primary">Start a new private chat</button>
+  </div>
+</div>
+
+<div id="nameGate" class="screen hidden">
+  <div class="card">
+    <h1>Join chat</h1>
+    <p class="sub">Pick a display name. No account needed.</p>
+    <input id="nameInput" maxlength="24" placeholder="Your name" autocomplete="off" />
+    <button id="joinBtn" class="primary">Join</button>
+  </div>
+</div>
+
+<div id="chat" class="screen hidden">
+  <header class="chat-header">
+    <div>
+      <div class="room-title">Private room</div>
+      <div id="presence" class="presence"></div>
+    </div>
+    <button id="copyLinkBtn" class="ghost">Copy invite link</button>
+  </header>
+
+  <div id="messages" class="messages"></div>
+  <div id="typingIndicator" class="typing-indicator"></div>
+
+  <form id="composerForm" class="composer">
+    <input id="composerInput" maxlength="2000" placeholder="Message" autocomplete="off" />
+    <button type="submit" class="primary">Send</button>
+  </form>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/client.js"></script>
+</body>
+</html>
