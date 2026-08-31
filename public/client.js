@@ -67,6 +67,39 @@
     }, 5000);
   }
 
+  // Easter egg: send "gay" and pride flags rain down from the top of the
+  // screen for 5 seconds.
+  let prideFlagsActive = false;
+  function triggerPrideFlags() {
+    if (prideFlagsActive) return;
+    prideFlagsActive = true;
+
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;inset:0;z-index:9999;pointer-events:none;overflow:hidden;';
+    document.body.appendChild(container);
+
+    const count = 70;
+    for (let i = 0; i < count; i++) {
+      const flag = document.createElement('span');
+      flag.className = 'pride-flag';
+      flag.textContent = '🏳️‍🌈';
+      flag.style.left = Math.random() * 100 + 'vw';
+      flag.style.fontSize = (22 + Math.random() * 20) + 'px';
+      flag.style.animationDuration = (2 + Math.random() * 2.5) + 's';
+      flag.style.animationDelay = (Math.random() * 2.2) + 's';
+      container.appendChild(flag);
+    }
+
+    setTimeout(() => {
+      container.style.transition = 'opacity 0.6s';
+      container.style.opacity = '0';
+      setTimeout(() => {
+        container.remove();
+        prideFlagsActive = false;
+      }, 600);
+    }, 5000);
+  }
+
   function escapeHtml(str) {
     const d = document.createElement('div');
     d.textContent = str;
@@ -211,7 +244,11 @@
 
     socket.on('message', (msg) => {
       addMessageEl(msg, msg.name === myName ? 'me' : 'other');
-      if (msg.text && msg.text.trim().toLowerCase() === 'matrix') triggerMatrixRain();
+      if (msg.text) {
+        const t = msg.text.trim().toLowerCase();
+        if (t === 'matrix') triggerMatrixRain();
+        if (t === 'gay') triggerPrideFlags();
+      }
     });
 
     socket.on('system', (payload) => {
