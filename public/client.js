@@ -133,6 +133,36 @@
     }, 5000);
   }
 
+  // Easter egg: say "kanye" anywhere in a message and a GIF floods the
+  // screen for 5 seconds. Embedded live from Giphy (their official embed
+  // player) rather than a file we host, since it's someone else's clip —
+  // the one exception to this app's "nothing ever leaves your browser"
+  // design, just for this one effect.
+  let kanyeActive = false;
+  function triggerKanye() {
+    if (kanyeActive) return;
+    kanyeActive = true;
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;';
+
+    const iframe = document.createElement('iframe');
+    iframe.src = 'https://giphy.com/embed/p4tNJiu5kDZp2DinRY';
+    iframe.style.cssText = 'border:0;width:min(90vw,90vh);height:min(90vw,90vh);border-radius:16px;';
+    iframe.allow = 'autoplay';
+    overlay.appendChild(iframe);
+    document.body.appendChild(overlay);
+
+    setTimeout(() => {
+      overlay.style.transition = 'opacity 0.6s';
+      overlay.style.opacity = '0';
+      setTimeout(() => {
+        overlay.remove();
+        kanyeActive = false;
+      }, 600);
+    }, 5000);
+  }
+
   function escapeHtml(str) {
     const d = document.createElement('div');
     d.textContent = str;
@@ -282,6 +312,7 @@
         if (/\bmatrix\b/.test(t)) triggerMatrixRain();
         if (/\bgay\b/.test(t)) triggerPrideFlags();
         if (/\bscary\b/.test(t)) triggerSpiders();
+        if (/\bkanye\b/.test(t)) triggerKanye();
       }
     });
 
