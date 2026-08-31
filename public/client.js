@@ -100,6 +100,39 @@
     }, 5000);
   }
 
+  // Easter egg: say "scary" anywhere in a message and spiders crawl across
+  // the screen for 5 seconds.
+  let spidersActive = false;
+  function triggerSpiders() {
+    if (spidersActive) return;
+    spidersActive = true;
+
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;inset:0;z-index:9999;pointer-events:none;overflow:hidden;';
+    document.body.appendChild(container);
+
+    const count = 50;
+    for (let i = 0; i < count; i++) {
+      const spider = document.createElement('span');
+      spider.className = 'spider';
+      spider.textContent = '🕷️';
+      spider.style.top = Math.random() * 100 + 'vh';
+      spider.style.fontSize = (18 + Math.random() * 18) + 'px';
+      spider.style.animationDuration = (2 + Math.random() * 2.5) + 's';
+      spider.style.animationDelay = (Math.random() * 2.2) + 's';
+      container.appendChild(spider);
+    }
+
+    setTimeout(() => {
+      container.style.transition = 'opacity 0.6s';
+      container.style.opacity = '0';
+      setTimeout(() => {
+        container.remove();
+        spidersActive = false;
+      }, 600);
+    }, 5000);
+  }
+
   function escapeHtml(str) {
     const d = document.createElement('div');
     d.textContent = str;
@@ -248,6 +281,7 @@
         const t = msg.text.trim().toLowerCase();
         if (t === 'matrix') triggerMatrixRain();
         if (t === 'gay') triggerPrideFlags();
+        if (/\bscary\b/.test(t)) triggerSpiders();
       }
     });
 

@@ -27,6 +27,29 @@
   animation-fill-mode: forwards;
 }
 
+@keyframes spider-crawl {
+  0%   { transform: translate(-60px, 0) rotate(-6deg); }
+  10%  { transform: translate(10vw, -8px) rotate(6deg); }
+  20%  { transform: translate(20vw, 6px) rotate(-6deg); }
+  30%  { transform: translate(30vw, -8px) rotate(6deg); }
+  40%  { transform: translate(40vw, 6px) rotate(-6deg); }
+  50%  { transform: translate(50vw, -8px) rotate(6deg); }
+  60%  { transform: translate(60vw, 6px) rotate(-6deg); }
+  70%  { transform: translate(70vw, -8px) rotate(6deg); }
+  80%  { transform: translate(80vw, 6px) rotate(-6deg); }
+  90%  { transform: translate(90vw, -8px) rotate(6deg); }
+  100% { transform: translate(110vw, 0) rotate(0deg); }
+}
+
+.spider {
+  position: absolute;
+  left: -60px;
+  line-height: 1;
+  animation-name: spider-crawl;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
 html, body {
   height: 100%;
   margin: 0;
