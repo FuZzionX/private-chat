@@ -215,10 +215,12 @@
     initVoiceCall(socket, myName);
   }
 
-  // --- Voice notes: record a short clip, send it like a photo. ---
+  // --- Voice notes: record, preview, then explicitly send. ---
   function initVoiceNotes(socket, attachBtn, textInput) {
     const recordBtn = document.getElementById('recordBtn');
-    if (!recordBtn) return;
+    const composerForm = document.getElementById('composerForm');
+    const previewBar = document.getElementById('voicePreview');
+    if (!recordBtn || !previewBar) return;
 
     const MAX_MS = 120000;
     let recorder = null;
@@ -247,14 +249,50 @@
       indicatorEl.textContent = `● ${m}:${s}`;
     }
 
-    function teardownUI() {
+    function teardownRecordingUI() {
       clearInterval(timerId);
       timerId = null;
       if (indicatorEl) { indicatorEl.remove(); indicatorEl = null; }
       recordBtn.classList.remove('recording');
       recordBtn.textContent = '🎤';
+      recordBtn.disabled = false;
       attachBtn.disabled = false;
       textInput.disabled = false;
+    }
+
+    function showPreview(dataUrl) {
+      hide(composerForm);
+      previewBar.innerHTML = '';
+
+      const audio = document.createElement('audio');
+      audio.controls = true;
+      audio.src = dataUrl;
+      previewBar.appendChild(audio);
+
+      const sendBtn = document.createElement('button');
+      sendBtn.type = 'button';
+      sendBtn.className = 'primary';
+      sendBtn.textContent = 'Send';
+      sendBtn.addEventListener('click', () => {
+        socket.emit('message', { audio: dataUrl });
+        closePreview();
+      });
+      previewBar.appendChild(sendBtn);
+
+      const discardBtn = document.createElement('button');
+      discardBtn.type = 'button';
+      discardBtn.className = 'discard-btn';
+      discardBtn.textContent = 'Discard';
+      discardBtn.addEventListener('click', closePreview);
+      previewBar.appendChild(discardBtn);
+
+      show(previewBar);
+    }
+
+    function closePreview() {
+      previewBar.innerHTML = '';
+      hide(previewBar);
+      show(composerForm);
     }
 
     async function startRecording() {
@@ -267,16 +305,22 @@
       }
 
       const mimeType = pickMimeType();
-      recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      try {
+        recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      } catch {
+        stream.getTracks().forEach((t) => t.stop());
+        toast('Voice notes are not supported in this browser');
+        return;
+      }
       chunks = [];
 
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        teardownUI();
+        teardownRecordingUI();
 
         const durationMs = Date.now() - startedAt;
-        if (durationMs < 400) return; // accidental tap
+        if (durationMs < 400 || chunks.length === 0) return; // accidental tap
 
         const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || 'audio/webm' });
         const reader = new FileReader();
@@ -285,13 +329,19 @@
           if (dataUrl.length > 6 * 1024 * 1024) {
             toast('That voice note is too long');
           } else {
-            socket.emit('message', { audio: dataUrl });
+            showPreview(dataUrl);
           }
         };
         reader.readAsDataURL(blob);
       };
 
-      recorder.start();
+      try {
+        recorder.start();
+      } catch {
+        stream.getTracks().forEach((t) => t.stop());
+        toast('Could not start recording, try again');
+        return;
+      }
       startedAt = Date.now();
       recordBtn.classList.add('recording');
       recordBtn.textContent = '⏹️';
