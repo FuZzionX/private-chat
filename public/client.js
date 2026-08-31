@@ -63,7 +63,8 @@
   function addMessageEl(msg, kind) {
     const div = document.createElement('div');
     const isImage = !!msg.image;
-    div.className = isImage ? `msg ${kind} image` : `msg ${kind}`;
+    const isAudio = !!msg.audio;
+    div.className = isImage ? `msg ${kind} image` : isAudio ? `msg ${kind} audio` : `msg ${kind}`;
     if (kind === 'system') {
       div.textContent = msg.text;
     } else {
@@ -78,6 +79,11 @@
         img.alt = 'Shared photo';
         img.addEventListener('click', () => window.open(msg.image, '_blank'));
         div.appendChild(img);
+      } else if (isAudio) {
+        const audio = document.createElement('audio');
+        audio.controls = true;
+        audio.src = msg.audio;
+        div.appendChild(audio);
       } else {
         const body = document.createElement('div');
         body.textContent = msg.text;
@@ -184,6 +190,8 @@
       }
     });
 
+    initVoiceNotes(socket, attachBtn, input);
+
     let lastTypingEmit = 0;
     input.addEventListener('input', () => {
       const now = Date.now();
@@ -205,6 +213,105 @@
     });
 
     initVoiceCall(socket, myName);
+  }
+
+  // --- Voice notes: record a short clip, send it like a photo. ---
+  function initVoiceNotes(socket, attachBtn, textInput) {
+    const recordBtn = document.getElementById('recordBtn');
+    if (!recordBtn) return;
+
+    const MAX_MS = 120000;
+    let recorder = null;
+    let chunks = [];
+    let startedAt = 0;
+    let timerId = null;
+    let indicatorEl = null;
+
+    function pickMimeType() {
+      const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+      return candidates.find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+    }
+
+    function showIndicator() {
+      indicatorEl = document.createElement('span');
+      indicatorEl.className = 'recording-indicator';
+      indicatorEl.textContent = '● 0:00';
+      recordBtn.after(indicatorEl);
+    }
+
+    function updateIndicator() {
+      if (!indicatorEl) return;
+      const secs = Math.floor((Date.now() - startedAt) / 1000);
+      const m = Math.floor(secs / 60);
+      const s = String(secs % 60).padStart(2, '0');
+      indicatorEl.textContent = `● ${m}:${s}`;
+    }
+
+    function teardownUI() {
+      clearInterval(timerId);
+      timerId = null;
+      if (indicatorEl) { indicatorEl.remove(); indicatorEl = null; }
+      recordBtn.classList.remove('recording');
+      recordBtn.textContent = '🎤';
+      attachBtn.disabled = false;
+      textInput.disabled = false;
+    }
+
+    async function startRecording() {
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        toast('Could not access microphone');
+        return;
+      }
+
+      const mimeType = pickMimeType();
+      recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      chunks = [];
+
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        teardownUI();
+
+        const durationMs = Date.now() - startedAt;
+        if (durationMs < 400) return; // accidental tap
+
+        const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || 'audio/webm' });
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result;
+          if (dataUrl.length > 6 * 1024 * 1024) {
+            toast('That voice note is too long');
+          } else {
+            socket.emit('message', { audio: dataUrl });
+          }
+        };
+        reader.readAsDataURL(blob);
+      };
+
+      recorder.start();
+      startedAt = Date.now();
+      recordBtn.classList.add('recording');
+      recordBtn.textContent = '⏹️';
+      attachBtn.disabled = true;
+      textInput.disabled = true;
+      showIndicator();
+      timerId = setInterval(() => {
+        updateIndicator();
+        if (Date.now() - startedAt > MAX_MS) stopRecording();
+      }, 250);
+    }
+
+    function stopRecording() {
+      if (recorder && recorder.state !== 'inactive') recorder.stop();
+    }
+
+    recordBtn.addEventListener('click', () => {
+      if (recorder && recorder.state === 'recording') stopRecording();
+      else startRecording();
+    });
   }
 
   // --- Voice calls: peer-to-peer WebRTC. Audio never touches the server —

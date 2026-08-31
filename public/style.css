@@ -253,6 +253,30 @@ button.ghost.active {
   margin: 2px 6px 4px;
 }
 
+.msg.audio audio {
+  display: block;
+  width: 220px;
+  height: 36px;
+}
+
+.attach-btn.recording {
+  border-color: #e05555;
+  color: #e05555;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.recording-indicator {
+  font-size: 13px;
+  color: #e05555;
+  white-space: nowrap;
+  padding: 0 4px;
+}
+
 .toast {
   position: fixed;
   bottom: 24px;

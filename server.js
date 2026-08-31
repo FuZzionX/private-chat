@@ -30,7 +30,7 @@ function getOrCreateRoom(roomId) {
 }
 
 function messageBytes(msg) {
-  return (msg.text ? msg.text.length : 0) + (msg.image ? msg.image.length : 0);
+  return (msg.text ? msg.text.length : 0) + (msg.image ? msg.image.length : 0) + (msg.audio ? msg.audio.length : 0);
 }
 
 function pushMessage(room, msg) {
@@ -59,6 +59,7 @@ app.get('/r/:roomId', (req, res) => {
 const MAX_NAME_LEN = 24;
 const MAX_MSG_LEN = 2000;
 const MAX_IMAGE_DATA_URL_LEN = 6 * 1024 * 1024; // ~4.5MB raw image, base64-encoded
+const MAX_AUDIO_DATA_URL_LEN = 6 * 1024 * 1024; // generous for a couple minutes of opus
 
 io.on('connection', (socket) => {
   let joinedRoomId = null;
@@ -92,6 +93,10 @@ io.on('connection', (socket) => {
       if (!/^data:image\/(png|jpe?g|webp|gif);base64,/.test(payload.image)) return;
       if (payload.image.length > MAX_IMAGE_DATA_URL_LEN) return;
       msg = { id: crypto.randomUUID(), name: displayName, image: payload.image, ts: Date.now() };
+    } else if (payload && typeof payload.audio === 'string') {
+      if (!/^data:audio\/[\w.+-]+(;codecs=[^;,]+)?;base64,/.test(payload.audio)) return;
+      if (payload.audio.length > MAX_AUDIO_DATA_URL_LEN) return;
+      msg = { id: crypto.randomUUID(), name: displayName, audio: payload.audio, ts: Date.now() };
     } else if (payload && typeof payload.text === 'string') {
       const trimmed = payload.text.trim().slice(0, MAX_MSG_LEN);
       if (!trimmed) return;
