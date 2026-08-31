@@ -221,6 +221,38 @@ button.ghost.active {
 .composer input { margin-bottom: 0; }
 .composer button { white-space: nowrap; }
 
+.attach-btn {
+  padding: 12px 14px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.msg.image {
+  padding: 4px;
+  background: transparent;
+}
+
+.msg.image img {
+  display: block;
+  max-width: 260px;
+  max-height: 320px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.msg.image .meta {
+  margin: 2px 6px 4px;
+}
+
 .toast {
   position: fixed;
   bottom: 24px;

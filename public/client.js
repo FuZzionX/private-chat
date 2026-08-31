@@ -62,20 +62,59 @@
 
   function addMessageEl(msg, kind) {
     const div = document.createElement('div');
-    div.className = `msg ${kind}`;
+    const isImage = !!msg.image;
+    div.className = isImage ? `msg ${kind} image` : `msg ${kind}`;
     if (kind === 'system') {
       div.textContent = msg.text;
     } else {
       const meta = document.createElement('div');
       meta.className = 'meta';
       meta.textContent = kind === 'me' ? fmtTime(msg.ts) : `${msg.name} · ${fmtTime(msg.ts)}`;
-      const body = document.createElement('div');
-      body.textContent = msg.text;
       div.appendChild(meta);
-      div.appendChild(body);
+
+      if (isImage) {
+        const img = document.createElement('img');
+        img.src = msg.image;
+        img.alt = 'Shared photo';
+        img.addEventListener('click', () => window.open(msg.image, '_blank'));
+        div.appendChild(img);
+      } else {
+        const body = document.createElement('div');
+        body.textContent = msg.text;
+        div.appendChild(body);
+      }
     }
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  // Downscale/compress client-side so photos stay reasonable over the socket.
+  function compressImage(file, maxDim = 1600, quality = 0.75) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('read failed'));
+      reader.onload = () => { img.src = reader.result; };
+      img.onerror = () => reject(new Error('decode failed'));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width >= height) {
+            height = Math.round(height * (maxDim / width));
+            width = maxDim;
+          } else {
+            width = Math.round(width * (maxDim / height));
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   function startChat() {
@@ -111,14 +150,38 @@
 
     const form = document.getElementById('composerForm');
     const input = document.getElementById('composerInput');
+    const attachBtn = document.getElementById('attachBtn');
+    const photoInput = document.getElementById('photoInput');
 
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       const text = input.value;
       if (!text.trim()) return;
-      socket.emit('message', text);
+      socket.emit('message', { text });
       input.value = '';
       socket.emit('typing', false);
+    });
+
+    attachBtn.addEventListener('click', () => photoInput.click());
+
+    photoInput.addEventListener('change', async () => {
+      const file = photoInput.files[0];
+      photoInput.value = '';
+      if (!file || !file.type.startsWith('image/')) return;
+
+      attachBtn.disabled = true;
+      try {
+        const dataUrl = await compressImage(file);
+        if (dataUrl.length > 6 * 1024 * 1024) {
+          toast('That photo is too large, try a smaller one');
+        } else {
+          socket.emit('message', { image: dataUrl });
+        }
+      } catch {
+        toast('Could not send that photo');
+      } finally {
+        attachBtn.disabled = false;
+      }
     });
 
     let lastTypingEmit = 0;

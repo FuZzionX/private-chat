@@ -5,23 +5,42 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = require('http').createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  // Default is 1MB, too small for a photo message — the whole point is
+  // images travel as part of the normal socket message, never a file upload.
+  maxHttpBufferSize: 8 * 1024 * 1024,
+});
 
 const PORT = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
 
 // In-memory only — nothing ever touches disk, nothing survives a restart.
-// rooms: Map<roomId, { messages: Array<{id, name, text, ts}>, users: Map<socketId, name> }>
+// rooms: Map<roomId, { messages: Array<{id, name, text?, image?, ts}>, users: Map<socketId, name> }>
 const rooms = new Map();
+const MAX_ROOM_HISTORY_BYTES = 40 * 1024 * 1024; // rough cap so an image-heavy room can't balloon memory
 
 function getOrCreateRoom(roomId) {
   let room = rooms.get(roomId);
   if (!room) {
-    room = { messages: [], users: new Map(), callMembers: new Set() };
+    room = { messages: [], users: new Map(), callMembers: new Set(), historyBytes: 0 };
     rooms.set(roomId, room);
   }
   return room;
+}
+
+function messageBytes(msg) {
+  return (msg.text ? msg.text.length : 0) + (msg.image ? msg.image.length : 0);
+}
+
+function pushMessage(room, msg) {
+  room.messages.push(msg);
+  room.historyBytes += messageBytes(msg);
+  while (room.messages.length > 500 || room.historyBytes > MAX_ROOM_HISTORY_BYTES) {
+    const dropped = room.messages.shift();
+    if (!dropped) break;
+    room.historyBytes -= messageBytes(dropped);
+  }
 }
 
 function roomUserList(room) {
@@ -39,6 +58,7 @@ app.get('/r/:roomId', (req, res) => {
 
 const MAX_NAME_LEN = 24;
 const MAX_MSG_LEN = 2000;
+const MAX_IMAGE_DATA_URL_LEN = 6 * 1024 * 1024; // ~4.5MB raw image, base64-encoded
 
 io.on('connection', (socket) => {
   let joinedRoomId = null;
@@ -61,25 +81,26 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('system', { text: `${displayName} joined`, ts: Date.now() });
   });
 
-  socket.on('message', (text) => {
+  socket.on('message', (payload) => {
     if (!joinedRoomId) return;
-    if (typeof text !== 'string') return;
-    const trimmed = text.trim().slice(0, MAX_MSG_LEN);
-    if (!trimmed) return;
-
     const room = rooms.get(joinedRoomId);
     if (!room) return;
 
-    const msg = {
-      id: crypto.randomUUID(),
-      name: displayName,
-      text: trimmed,
-      ts: Date.now(),
-    };
-    room.messages.push(msg);
-    // Cap in-memory history so a long-running room can't grow unbounded.
-    if (room.messages.length > 500) room.messages.shift();
+    let msg = null;
 
+    if (payload && typeof payload.image === 'string') {
+      if (!/^data:image\/(png|jpe?g|webp|gif);base64,/.test(payload.image)) return;
+      if (payload.image.length > MAX_IMAGE_DATA_URL_LEN) return;
+      msg = { id: crypto.randomUUID(), name: displayName, image: payload.image, ts: Date.now() };
+    } else if (payload && typeof payload.text === 'string') {
+      const trimmed = payload.text.trim().slice(0, MAX_MSG_LEN);
+      if (!trimmed) return;
+      msg = { id: crypto.randomUUID(), name: displayName, text: trimmed, ts: Date.now() };
+    } else {
+      return;
+    }
+
+    pushMessage(room, msg);
     io.to(joinedRoomId).emit('message', msg);
   });
 
