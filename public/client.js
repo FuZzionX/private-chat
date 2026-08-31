@@ -16,6 +16,57 @@
     setTimeout(() => hide(toastEl), 1800);
   }
 
+  // Easter egg: send "matrix" and everyone currently in the room sees
+  // green digital rain flood the screen for 5 seconds.
+  let matrixRainActive = false;
+  function triggerMatrixRain() {
+    if (matrixRainActive) return;
+    matrixRainActive = true;
+
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = 'position:fixed;inset:0;z-index:9999;pointer-events:none;';
+    document.body.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ';
+    const fontSize = 18;
+    const columns = Math.ceil(window.innerWidth / fontSize);
+    const drops = new Array(columns).fill(1);
+
+    function draw() {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#39ff6a';
+      ctx.font = fontSize + 'px monospace';
+      for (let i = 0; i < drops.length; i++) {
+        const char = chars[Math.floor(Math.random() * chars.length)];
+        ctx.fillText(char, i * fontSize, drops[i] * fontSize);
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+        drops[i]++;
+      }
+    }
+
+    const intervalId = setInterval(draw, 40);
+
+    setTimeout(() => {
+      clearInterval(intervalId);
+      canvas.style.transition = 'opacity 0.6s';
+      canvas.style.opacity = '0';
+      setTimeout(() => {
+        window.removeEventListener('resize', resize);
+        canvas.remove();
+        matrixRainActive = false;
+      }, 600);
+    }, 5000);
+  }
+
   function escapeHtml(str) {
     const d = document.createElement('div');
     d.textContent = str;
@@ -160,6 +211,7 @@
 
     socket.on('message', (msg) => {
       addMessageEl(msg, msg.name === myName ? 'me' : 'other');
+      if (msg.text && msg.text.trim().toLowerCase() === 'matrix') triggerMatrixRain();
     });
 
     socket.on('system', (payload) => {
