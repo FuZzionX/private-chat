@@ -509,7 +509,8 @@
         return;
       }
       inCall = true;
-      callBtn.textContent = '📞 Leave call';
+      callBtn.title = 'Leave call';
+      callBtn.setAttribute('aria-label', 'Leave call');
       callBtn.classList.add('active');
       show(muteBtn);
       renderCallBar();
@@ -524,11 +525,13 @@
         localStream = null;
       }
       socket.emit('call:leave');
-      callBtn.textContent = '🎙️ Start voice call';
+      callBtn.title = 'Start voice call';
+      callBtn.setAttribute('aria-label', 'Start voice call');
       callBtn.classList.remove('active');
       hide(muteBtn);
       muted = false;
-      muteBtn.textContent = '🎙️ Mute';
+      muteBtn.textContent = '🎙️';
+      muteBtn.title = 'Mute';
       callBar.classList.add('hidden');
     }
 
@@ -541,7 +544,8 @@
       if (!localStream) return;
       muted = !muted;
       localStream.getAudioTracks().forEach((t) => { t.enabled = !muted; });
-      muteBtn.textContent = muted ? '🔇 Unmute' : '🎙️ Mute';
+      muteBtn.textContent = muted ? '🔇' : '🎙️';
+      muteBtn.title = muted ? 'Unmute' : 'Mute';
     });
 
     socket.on('call:members', async (existing) => {
