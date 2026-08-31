@@ -140,5 +140,183 @@
         toast(window.location.href);
       }
     });
+
+    initVoiceCall(socket, myName);
+  }
+
+  // --- Voice calls: peer-to-peer WebRTC. Audio never touches the server —
+  // it only relays the SDP/ICE handshake over the existing socket. ---
+  function initVoiceCall(socket, myName) {
+    const ICE_SERVERS = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ];
+
+    const callBtn = document.getElementById('callBtn');
+    const muteBtn = document.getElementById('muteBtn');
+    const callBar = document.getElementById('callBar');
+
+    let localStream = null;
+    let inCall = false;
+    let muted = false;
+    const peers = new Map(); // socketId -> RTCPeerConnection
+    const peerNames = new Map(); // socketId -> name
+    const audioEls = new Map(); // socketId -> HTMLAudioElement
+
+    function renderCallBar() {
+      if (!inCall || peers.size === 0) {
+        callBar.innerHTML = inCall ? 'In call — waiting for others…' : '';
+        callBar.classList.toggle('hidden', !inCall);
+        return;
+      }
+      callBar.classList.remove('hidden');
+      callBar.innerHTML = '';
+      const label = document.createElement('span');
+      label.textContent = 'In call:';
+      callBar.appendChild(label);
+      for (const id of peers.keys()) {
+        const chip = document.createElement('span');
+        chip.className = 'call-chip';
+        chip.textContent = peerNames.get(id) || 'Someone';
+        callBar.appendChild(chip);
+      }
+    }
+
+    function createPeerConnection(peerId, peerName) {
+      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      peerNames.set(peerId, peerName);
+
+      if (localStream) {
+        for (const track of localStream.getAudioTracks()) {
+          pc.addTrack(track, localStream);
+        }
+      }
+
+      pc.onicecandidate = (e) => {
+        if (e.candidate) {
+          socket.emit('call:signal', { to: peerId, data: { type: 'ice', candidate: e.candidate } });
+        }
+      };
+
+      pc.ontrack = (e) => {
+        let audioEl = audioEls.get(peerId);
+        if (!audioEl) {
+          audioEl = document.createElement('audio');
+          audioEl.autoplay = true;
+          audioEl.style.display = 'none';
+          document.body.appendChild(audioEl);
+          audioEls.set(peerId, audioEl);
+        }
+        audioEl.srcObject = e.streams[0];
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) {
+          cleanupPeer(peerId);
+        }
+      };
+
+      peers.set(peerId, pc);
+      return pc;
+    }
+
+    function cleanupPeer(peerId) {
+      const pc = peers.get(peerId);
+      if (pc) {
+        pc.close();
+        peers.delete(peerId);
+      }
+      peerNames.delete(peerId);
+      const audioEl = audioEls.get(peerId);
+      if (audioEl) {
+        audioEl.remove();
+        audioEls.delete(peerId);
+      }
+      renderCallBar();
+    }
+
+    async function joinCall() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        toast('Could not access microphone');
+        return;
+      }
+      inCall = true;
+      callBtn.textContent = '📞 Leave call';
+      callBtn.classList.add('active');
+      show(muteBtn);
+      renderCallBar();
+      socket.emit('call:join');
+    }
+
+    function leaveCall() {
+      inCall = false;
+      for (const id of Array.from(peers.keys())) cleanupPeer(id);
+      if (localStream) {
+        localStream.getTracks().forEach((t) => t.stop());
+        localStream = null;
+      }
+      socket.emit('call:leave');
+      callBtn.textContent = '🎙️ Start voice call';
+      callBtn.classList.remove('active');
+      hide(muteBtn);
+      muted = false;
+      muteBtn.textContent = '🎙️ Mute';
+      callBar.classList.add('hidden');
+    }
+
+    callBtn.addEventListener('click', () => {
+      if (inCall) leaveCall();
+      else joinCall();
+    });
+
+    muteBtn.addEventListener('click', () => {
+      if (!localStream) return;
+      muted = !muted;
+      localStream.getAudioTracks().forEach((t) => { t.enabled = !muted; });
+      muteBtn.textContent = muted ? '🔇 Unmute' : '🎙️ Mute';
+    });
+
+    socket.on('call:members', async (existing) => {
+      for (const { id, name } of existing) {
+        const pc = createPeerConnection(id, name);
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socket.emit('call:signal', { to: id, data: { type: 'offer', sdp: offer } });
+        } catch {
+          cleanupPeer(id);
+        }
+      }
+      renderCallBar();
+    });
+
+    socket.on('call:peer-joined', ({ name }) => {
+      if (inCall) toast(`${name} joined the call`);
+    });
+
+    socket.on('call:signal', async ({ from, name, data }) => {
+      if (!inCall) return;
+      let pc = peers.get(from);
+      if (!pc) pc = createPeerConnection(from, name);
+
+      if (data.type === 'offer') {
+        await pc.setRemoteDescription(data.sdp);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socket.emit('call:signal', { to: from, data: { type: 'answer', sdp: answer } });
+        renderCallBar();
+      } else if (data.type === 'answer') {
+        await pc.setRemoteDescription(data.sdp);
+        renderCallBar();
+      } else if (data.type === 'ice') {
+        try { await pc.addIceCandidate(data.candidate); } catch { /* ignore */ }
+      }
+    });
+
+    socket.on('call:peer-left', ({ id }) => {
+      cleanupPeer(id);
+    });
   }
 })();

@@ -31,8 +31,14 @@
       <div class="room-title">Private room</div>
       <div id="presence" class="presence"></div>
     </div>
-    <button id="copyLinkBtn" class="ghost">Copy invite link</button>
+    <div class="header-actions">
+      <button id="callBtn" class="ghost">🎙️ Start voice call</button>
+      <button id="muteBtn" class="ghost hidden">🎙️ Mute</button>
+      <button id="copyLinkBtn" class="ghost">Copy invite link</button>
+    </div>
   </header>
+
+  <div id="callBar" class="call-bar hidden"></div>
 
   <div id="messages" class="messages"></div>
   <div id="typingIndicator" class="typing-indicator"></div>

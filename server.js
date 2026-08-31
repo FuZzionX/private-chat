@@ -18,7 +18,7 @@ const rooms = new Map();
 function getOrCreateRoom(roomId) {
   let room = rooms.get(roomId);
   if (!room) {
-    room = { messages: [], users: new Map() };
+    room = { messages: [], users: new Map(), callMembers: new Set() };
     rooms.set(roomId, room);
   }
   return room;
@@ -88,12 +88,47 @@ io.on('connection', (socket) => {
     socket.to(joinedRoomId).emit('typing', { name: displayName, isTyping: !!isTyping });
   });
 
+  // Voice calls are peer-to-peer WebRTC — this server only relays the
+  // handshake (who's in the call, SDP offers/answers, ICE candidates).
+  // No audio ever passes through it.
+  socket.on('call:join', () => {
+    if (!joinedRoomId) return;
+    const room = rooms.get(joinedRoomId);
+    if (!room) return;
+
+    const existing = Array.from(room.callMembers)
+      .filter((id) => id !== socket.id)
+      .map((id) => ({ id, name: room.users.get(id) }));
+
+    room.callMembers.add(socket.id);
+    socket.emit('call:members', existing);
+    socket.to(joinedRoomId).emit('call:peer-joined', { id: socket.id, name: displayName });
+  });
+
+  socket.on('call:signal', ({ to, data } = {}) => {
+    if (!joinedRoomId) return;
+    const room = rooms.get(joinedRoomId);
+    if (!room || typeof to !== 'string' || !room.callMembers.has(to)) return;
+    io.to(to).emit('call:signal', { from: socket.id, name: displayName, data });
+  });
+
+  socket.on('call:leave', () => {
+    if (!joinedRoomId) return;
+    const room = rooms.get(joinedRoomId);
+    if (!room) return;
+    room.callMembers.delete(socket.id);
+    socket.to(joinedRoomId).emit('call:peer-left', { id: socket.id });
+  });
+
   socket.on('disconnect', () => {
     if (!joinedRoomId) return;
     const room = rooms.get(joinedRoomId);
     if (!room) return;
 
     room.users.delete(socket.id);
+    if (room.callMembers.delete(socket.id)) {
+      socket.to(joinedRoomId).emit('call:peer-left', { id: socket.id });
+    }
     io.to(joinedRoomId).emit('presence', { users: roomUserList(room) });
     socket.to(joinedRoomId).emit('system', { text: `${displayName} left`, ts: Date.now() });
 
