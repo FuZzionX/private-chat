@@ -82,31 +82,34 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('system', { text: `${displayName} joined`, ts: Date.now() });
   });
 
-  socket.on('message', (payload) => {
-    if (!joinedRoomId) return;
+  socket.on('message', (payload, ack) => {
+    const fail = (reason) => { if (typeof ack === 'function') ack({ ok: false, reason }); };
+
+    if (!joinedRoomId) return fail('not-in-room');
     const room = rooms.get(joinedRoomId);
-    if (!room) return;
+    if (!room) return fail('room-gone');
 
     let msg = null;
 
     if (payload && typeof payload.image === 'string') {
-      if (!/^data:image\/(png|jpe?g|webp|gif);base64,/.test(payload.image)) return;
-      if (payload.image.length > MAX_IMAGE_DATA_URL_LEN) return;
+      if (!/^data:image\//.test(payload.image)) return fail('bad-image');
+      if (payload.image.length > MAX_IMAGE_DATA_URL_LEN) return fail('image-too-large');
       msg = { id: crypto.randomUUID(), name: displayName, image: payload.image, ts: Date.now() };
     } else if (payload && typeof payload.audio === 'string') {
-      if (!/^data:audio\/[\w.+-]+(;codecs=[^;,]+)?;base64,/.test(payload.audio)) return;
-      if (payload.audio.length > MAX_AUDIO_DATA_URL_LEN) return;
+      if (!/^data:audio\//.test(payload.audio)) return fail('bad-audio');
+      if (payload.audio.length > MAX_AUDIO_DATA_URL_LEN) return fail('audio-too-large');
       msg = { id: crypto.randomUUID(), name: displayName, audio: payload.audio, ts: Date.now() };
     } else if (payload && typeof payload.text === 'string') {
       const trimmed = payload.text.trim().slice(0, MAX_MSG_LEN);
-      if (!trimmed) return;
+      if (!trimmed) return fail('empty-text');
       msg = { id: crypto.randomUUID(), name: displayName, text: trimmed, ts: Date.now() };
     } else {
-      return;
+      return fail('bad-payload');
     }
 
     pushMessage(room, msg);
     io.to(joinedRoomId).emit('message', msg);
+    if (typeof ack === 'function') ack({ ok: true });
   });
 
   socket.on('typing', (isTyping) => {

@@ -163,7 +163,9 @@
       e.preventDefault();
       const text = input.value;
       if (!text.trim()) return;
-      socket.emit('message', { text });
+      socket.timeout(8000).emit('message', { text }, (err, response) => {
+        if (err || !response || !response.ok) toast('Message failed to send, try again');
+      });
       input.value = '';
       socket.emit('typing', false);
     });
@@ -181,7 +183,9 @@
         if (dataUrl.length > 6 * 1024 * 1024) {
           toast('That photo is too large, try a smaller one');
         } else {
-          socket.emit('message', { image: dataUrl });
+          socket.timeout(8000).emit('message', { image: dataUrl }, (err, response) => {
+            if (err || !response || !response.ok) toast('Photo failed to send, try again');
+          });
         }
       } catch {
         toast('Could not send that photo');
@@ -274,8 +278,17 @@
       sendBtn.className = 'primary';
       sendBtn.textContent = 'Send';
       sendBtn.addEventListener('click', () => {
-        socket.emit('message', { audio: dataUrl });
-        closePreview();
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Sending…';
+        socket.timeout(8000).emit('message', { audio: dataUrl }, (err, response) => {
+          if (err || !response || !response.ok) {
+            sendBtn.disabled = false;
+            sendBtn.textContent = 'Send';
+            toast('Voice note failed to send, try again');
+            return;
+          }
+          closePreview();
+        });
       });
       previewBar.appendChild(sendBtn);
 
