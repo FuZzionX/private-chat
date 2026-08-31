@@ -279,8 +279,8 @@
       addMessageEl(msg, msg.name === myName ? 'me' : 'other');
       if (msg.text) {
         const t = msg.text.trim().toLowerCase();
-        if (t === 'matrix') triggerMatrixRain();
-        if (t === 'gay') triggerPrideFlags();
+        if (/\bmatrix\b/.test(t)) triggerMatrixRain();
+        if (/\bgay\b/.test(t)) triggerPrideFlags();
         if (/\bscary\b/.test(t)) triggerSpiders();
       }
     });
