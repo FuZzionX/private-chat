@@ -187,9 +187,22 @@
     }
   }
 
+  function isLightColor(hex) {
+    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+    if (!m) return false;
+    const [r, g, b] = m.slice(1).map((h) => parseInt(h, 16) / 255);
+    // Relative luminance (sRGB) — cheap approximation is fine for a background/foreground call.
+    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    return luminance > 0.6;
+  }
+
   function applyTheme(theme) {
     document.documentElement.style.setProperty('--bubble-me', theme.bubble);
     document.documentElement.style.setProperty('--bg', theme.bg);
+    // Topo background lines are white by default; flip to black so they
+    // stay visible if the background itself is set light/white.
+    const topo = document.getElementById('bgTopo');
+    if (topo) topo.classList.toggle('inverted', isLightColor(theme.bg));
   }
 
   function saveTheme(theme) {
